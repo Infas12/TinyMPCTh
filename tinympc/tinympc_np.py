@@ -89,7 +89,7 @@ class MPCSolver:
         R1 = self.cost.R + np.eye(self.nu) * self.rho
         Q1 = self.cost.Q + np.eye(self.nx) * self.rho
 
-        for i in range(7000):
+        for i in range(50):
             Kinf[:] = np.linalg.inv(R1+ self.dyn.B.T @ Ptp1 @ self.dyn.B) @ \
             self.dyn.B.T @ Ptp1 @ self.dyn.A
             Pinf[:] = Q1 + self.dyn.A.T @ Ptp1 @ self.dyn.A - self.dyn.A.T @ Ptp1 @ self.dyn.B @ Kinf
