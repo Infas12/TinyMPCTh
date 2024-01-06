@@ -38,7 +38,7 @@ class MPCSolver:
         self.C1 = np.zeros((self.nu, self.nu)) # Quu_inv
         self.C2 = np.zeros((self.nx, self.nx)) # AmBKt
         self.C3 = np.zeros((self.nx, self.nu)) # coeff_d2p
-        self.cache_matrices()
+        self.cache_lqr_matrices()
 
         # reference state trajectory
         self.xref = np.zeros((self.nx, self.N))
@@ -67,7 +67,7 @@ class MPCSolver:
         self.y = np.zeros((self.nu, self.N-1))
 
 
-    def cache_matrices(self):
+    def cache_lqr_matrices(self):
         # First, compute the infinite-horizon LQR solution
         Pinf, Kinf = self.infinite_horizon_lqr()
 
@@ -133,7 +133,10 @@ class MPCSolver:
         solver_residual_state = np.max(np.abs(self.v - self.vnew))
         primal_residual_input = np.max(np.abs(self.u - self.znew))
         solver_residual_input = np.max(np.abs(self.z - self.znew))
-        if primal_residual_state < 1e-3 and solver_residual_state < 1e-3 and primal_residual_input < 1e-3 and solver_residual_input < 1e-3: #hard coded
+        if  primal_residual_state < 1e-3 and \
+            solver_residual_state < 1e-3 and \
+            primal_residual_input < 1e-3 and \
+            solver_residual_input < 1e-3: #hard coded
             return True
         else:
             return False
