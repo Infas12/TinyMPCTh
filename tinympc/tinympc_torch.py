@@ -41,7 +41,7 @@ class MPCSolver:
         self.C1 = torch.zeros((num_envs, self.nu, self.nu)).to(device) # Quu_inv
         self.C2 = torch.zeros((num_envs, self.nx, self.nx)).to(device) # AmBKt
         self.C3 = torch.zeros((num_envs, self.nx, self.nu)).to(device) # coeff_d2p
-        self.cache_lqr_matrices()
+        self.update_lqr()
 
         # reference state trajectory
         self.xref = torch.zeros((num_envs, self.nx, self.N)).to(device)
@@ -70,7 +70,7 @@ class MPCSolver:
         self.y = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
 
 
-    def cache_lqr_matrices(self):
+    def update_lqr(self):
         # First, compute the infinite-horizon LQR solution
         Pinf, Kinf = self.infinite_horizon_lqr()
 
