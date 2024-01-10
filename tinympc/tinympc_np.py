@@ -147,7 +147,7 @@ class MPCSolver:
         self.x[:,0] = x0
         self.xref[:] = xref
 
-        for i in range(100):
+        for i in range(1):
             self.forward_pass()
             self.update_slack()
             self.update_dual()

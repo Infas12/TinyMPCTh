@@ -99,7 +99,7 @@ class MPCSolver:
         R1 = self.cost.R + torch.eye(self.nu,device=self.device)[None,:] * self.rho
         Q1 = self.cost.Q + torch.eye(self.nx,device=self.device)[None,:] * self.rho
         
-        for i in range(50):
+        for i in range(5000):
             tmp = torch.linalg.inv(R1 + torch.bmm(torch.bmm(self.dyn.B.transpose(1,2),Ptp1),self.dyn.B)) 
             Kinf[:] = torch.bmm(tmp,torch.bmm(torch.bmm(self.dyn.B.transpose(1,2),Ptp1),self.dyn.A))
             Pinf[:] = Q1 + \
@@ -159,7 +159,33 @@ class MPCSolver:
             return False        
 
     def solve(self, xref, x0):
+        num_envs = self.num_envs
+        device = self.device
+        # reference state trajectory
+        self.xref = torch.zeros((num_envs, self.nx, self.N)).to(device)
         
+        # State and input trajectories
+        self.x = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.u = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+
+        # Linear control cost terms
+        self.q = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.r = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+
+        # Linear Riccati backward pass terms
+        self.p = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.d = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+
+        # auxiliary variables; notation is different from paper.
+        # TODO: change notation
+        self.v = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.vnew = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.z = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+        self.znew = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+
+        # Dual variables
+        self.g = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.y = torch.zeros((num_envs, self.nu, self.N-1)).to(device)        
         self.x[:,:,0:1] = x0
         self.xref[:] = xref
 
