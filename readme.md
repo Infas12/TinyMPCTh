@@ -1,4 +1,9 @@
 # TinyMPCTh
+
+[!InvertedPendulum](.\media\InvertedPendulum.gif)
+
+[!Quadruped](.\media\Quadruped.gif)
+
 Pytorch Implementation of TinyMPC, a lightweight ADMM-based mpc solver. TinyMPC is division-free and requires no matrix factorization, which makes it robust and efficient.
 
 TinyMPCTh can handle convex QP MPC problems in the following form:
