@@ -18,59 +18,68 @@ class LinearConstraints:
         self.ulb = ulb
         self.uub = uub
 
+class MPCParams:
+    def __init__(self, mpc_steps, rho=0.001, recatti_iter=5000, mpc_max_iter=100):
+        self.mpc_steps = mpc_steps
+        self.rho = rho
+        self.recatti_iter = recatti_iter
+        self.mpc_max_iter = mpc_max_iter
+        
+
 class MPCSolver:
-    def __init__(self, dyn:LinearDynamics, cost:LinearCost, constraints:LinearConstraints, N, rho, num_envs, device):
+    def __init__(self, dyn:LinearDynamics, cost:LinearCost, constraints:LinearConstraints, params:MPCParams, num_envs, device):
         self.dyn = dyn
         self.cost = cost
         self.constraints = constraints
+        self.mpcparams = params
 
         self.num_envs = num_envs
         self.device = device
 
         # Problem dimensions
-        self.N = N # time horizon
+        self.N = params.mpc_steps 
         self.nu = dyn.B.shape[2]
         self.nx = dyn.A.shape[1]
 
         # MPC parameters
-        self.rho = rho
+        self.rho = params.rho
 
         # Cached matrices
-        self.Pinf = torch.zeros((num_envs, self.nx, self.nx)).to(device)
-        self.Kinf = torch.zeros((num_envs, self.nu, self.nx)).to(device)
-        self.C1 = torch.zeros((num_envs, self.nu, self.nu)).to(device) # Quu_inv
-        self.C2 = torch.zeros((num_envs, self.nx, self.nx)).to(device) # AmBKt
-        self.C3 = torch.zeros((num_envs, self.nx, self.nu)).to(device) # coeff_d2p
-        self.update_lqr()
+        self.Pinf = torch.zeros((num_envs, self.nx, self.nx),device=device)
+        self.Kinf = torch.zeros((num_envs, self.nu, self.nx),device=device)
+        self.C1 = torch.zeros((num_envs, self.nu, self.nu),device=device) # Quu_inv
+        self.C2 = torch.zeros((num_envs, self.nx, self.nx),device=device) # AmBKt
+        self.C3 = torch.zeros((num_envs, self.nx, self.nu),device=device) # coeff_d2p
+        self.cache_matrics()
 
         # reference state trajectory
-        self.xref = torch.zeros((num_envs, self.nx, self.N)).to(device)
+        self.xref = torch.zeros((num_envs, self.nx, self.N),device=device)
         
         # State and input trajectories
-        self.x = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.u = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+        self.x = torch.zeros((num_envs, self.nx, self.N),device=device)
+        self.u = torch.zeros((num_envs, self.nu, self.N-1),device=device)
 
         # Linear control cost terms
-        self.q = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.r = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+        self.q = torch.zeros((num_envs, self.nx, self.N),device=device)
+        self.r = torch.zeros((num_envs, self.nu, self.N-1),device=device)
 
         # Linear Riccati backward pass terms
-        self.p = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.d = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+        self.p = torch.zeros((num_envs, self.nx, self.N),device=device)
+        self.d = torch.zeros((num_envs, self.nu, self.N-1),device=device)
 
         # auxiliary variables; notation is different from paper.
         # TODO: change notation
-        self.v = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.vnew = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.z = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
-        self.znew = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+        self.v = torch.zeros((num_envs, self.nx, self.N),device=device)
+        self.vnew = torch.zeros((num_envs, self.nx, self.N),device=device)
+        self.z = torch.zeros((num_envs, self.nu, self.N-1),device=device)
+        self.znew = torch.zeros((num_envs, self.nu, self.N-1),device=device)
 
         # Dual variables
-        self.g = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.y = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
+        self.g = torch.zeros((num_envs, self.nx, self.N),device=device)
+        self.y = torch.zeros((num_envs, self.nu, self.N-1),device=device)
 
 
-    def update_lqr(self):
+    def cache_matrics(self):
         # First, compute the infinite-horizon LQR solution
         Pinf, Kinf = self.infinite_horizon_lqr()
 
@@ -99,7 +108,7 @@ class MPCSolver:
         R1 = self.cost.R + torch.eye(self.nu,device=self.device)[None,:] * self.rho
         Q1 = self.cost.Q + torch.eye(self.nx,device=self.device)[None,:] * self.rho
         
-        for i in range(5000):
+        for i in range(self.mpcparams.recatti_iter):
             tmp = torch.linalg.inv(R1 + torch.bmm(torch.bmm(self.dyn.B.transpose(1,2),Ptp1),self.dyn.B)) 
             Kinf[:] = torch.bmm(tmp,torch.bmm(torch.bmm(self.dyn.B.transpose(1,2),Ptp1),self.dyn.A))
             Pinf[:] = Q1 + \
@@ -108,8 +117,8 @@ class MPCSolver:
             Ktp1[:] = Kinf
             Ptp1[:] = Pinf
             
-        print("Kinf: \r\n", Kinf)
-        print("Pinf: \r\n", Pinf)
+        # print("Kinf: \r\n", Kinf)
+        # print("Pinf: \r\n", Pinf)
 
         return Pinf, Kinf
     
@@ -139,7 +148,7 @@ class MPCSolver:
         self.g[:] = self.g + self.x - self.vnew
 
     def update_linear_cost(self):
-        self.r[:] = 0 - self.rho * (self.znew - self.y) # update r 1:N-1; No uref in this case
+        self.r[:] = 0 - self.rho * (self.znew - self.y) # update r 1:N-1; uref = 0 in this case.
         self.q[:] = - torch.bmm(self.cost.Q.transpose(1,2),self.xref) - self.rho * (self.vnew - self.g) # update q 1:N 
         
         self.p[:,:,self.N-1:self.N] = - torch.bmm(self.xref[:,:,self.N-1:self.N].transpose(1,2),self.Pinf).transpose(1,2) - \
@@ -156,40 +165,29 @@ class MPCSolver:
             solver_residual_input < 1e-3: #hard coded
             return True
         else:
-            return False        
+            return False
+    
+    def reset(self):
+        self.x[:] = 0
+        self.u[:] = 0
+        self.q[:] = 0
+        self.r[:] = 0
+        self.p[:] = 0
+        self.d[:] = 0
+        self.v[:] = 0
+        self.vnew[:] = 0
+        self.z[:] = 0
+        self.znew[:] = 0
+        self.g[:] = 0
+        self.y[:] = 0
 
     def solve(self, xref, x0):
-        num_envs = self.num_envs
-        device = self.device
-        # reference state trajectory
-        self.xref = torch.zeros((num_envs, self.nx, self.N)).to(device)
         
-        # State and input trajectories
-        self.x = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.u = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
-
-        # Linear control cost terms
-        self.q = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.r = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
-
-        # Linear Riccati backward pass terms
-        self.p = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.d = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
-
-        # auxiliary variables; notation is different from paper.
-        # TODO: change notation
-        self.v = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.vnew = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.z = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
-        self.znew = torch.zeros((num_envs, self.nu, self.N-1)).to(device)
-
-        # Dual variables
-        self.g = torch.zeros((num_envs, self.nx, self.N)).to(device)
-        self.y = torch.zeros((num_envs, self.nu, self.N-1)).to(device)        
+        self.reset()
         self.x[:,:,0:1] = x0
         self.xref[:] = xref
 
-        for i in range(100):
+        for i in range(self.mpcparams.mpc_max_iter):
             self.forward_pass()
             self.update_slack()
             self.update_dual()
