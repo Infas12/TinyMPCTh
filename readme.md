@@ -3,7 +3,15 @@ Pytorch Implementation of TinyMPC, a lightweight ADMM-based mpc solver. TinyMPC 
 
 TinyMPCTh can handle convex QP MPC problems in the following form:
 
-(Latex here)
+$$
+\begin{array}{cl}
+\operatorname{minimize} & \frac{1}{2}\left(x_N-\bar{x}_N\right)^T Q_f\left(x_N-\bar{x}_N\right)+ \\
+& \sum_{k=0}^N\left(\frac{1}{2}\left(x_k-\bar{x}_k\right)^T Q\left(x_k-\bar{x}_k\right)+\frac{1}{2}\left(u_k\right)^T R\left(u_k\right)\right) \\
+\text { subject to } & x_{k+1}=A x_k+B u_k \\
+& \bar{u} \leq u_k \leq \underline{u} \\
+& \bar{x} \leq x_k \leq \underline{x}
+\end{array}
+$$
 
 
 ## Dependencies
