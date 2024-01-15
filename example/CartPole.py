@@ -8,7 +8,7 @@ DIR = os.path.abspath(os.path.dirname(__file__))
 MAIN_DIR = os.path.dirname(DIR)
 sys.path.append(MAIN_DIR)
 
-from tinympcTh.tinympc_torch import MPCSolver, LinearDynamics, LinearCost, LinearConstraints, MPCParams
+from tinympcTh.tinyiLQR_torch import MPCSolver, LinearDynamics, LinearCost, LinearConstraints, MPCParams
 
 
 
@@ -34,35 +34,42 @@ params = envs.gym.get_sim_params(envs.sim)
 params.dt = 0.005
 envs.gym.set_sim_params(envs.sim, params)
 
+
 # mpc parameters
 g = 9.81
 m_pole = 1
 M_cart = 1
 l_pole = 0.47
 mpc_dt = 0.005
+mpc_steps = 50
+params = MPCParams(mpc_steps, 1e-2, 20)
 
 # system dynamics
-A_ct = torch.tensor([[0, 1, 0, 0], 
+A = torch.tensor([[0, 1, 0, 0], 
                      [0, 0, m_pole*g/M_cart,0],
                      [0, 0, 0, 1],
                      [0, 0, (M_cart+m_pole)*g/(M_cart*l_pole), 0]]
-                    ).unsqueeze(0).repeat(num_envs,1,1)
+                    ) * mpc_dt + torch.eye(4)
+A_dt = A.unsqueeze(0).unsqueeze(-1).repeat(num_envs,1,1,mpc_steps)
+
+
 B_ct = torch.tensor([[0],
                      [1.0/M_cart],
 					 [0],
 					 [1.0/(M_cart*l_pole)]]
-					).unsqueeze(0).repeat(num_envs,1,1)
-A_dt = torch.zeros((num_envs,4,4)) + torch.eye(4) + A_ct * mpc_dt
+					).unsqueeze(0).unsqueeze(-1).repeat(num_envs,1,1,mpc_steps)
+
+
 B_dt = B_ct * mpc_dt
 dyn = LinearDynamics(A_dt,B_dt)
 
 # system cost
-Q = torch.tensor([[100,0,0,0],
+Q = torch.tensor([[50,0,0,0],
 				  [0,0.1,0,0],
-				  [0,0,5,0],
+				  [0,0,500,0],
 				  [0,0,0,1]])
 Q = torch.zeros(num_envs,4,4) + Q
-R = torch.eye(1).unsqueeze(0).repeat(num_envs,1,1) 
+R = torch.eye(1).unsqueeze(0).repeat(num_envs,1,1) * 0.01
 Qf = torch.zeros(num_envs,4,4) + Q
 cost = LinearCost(Q,R,Qf)
 
@@ -77,9 +84,7 @@ ulb = torch.ones((1,1)).unsqueeze(0).repeat(num_envs,1,1) * -4
 uub = torch.ones((1,1)).unsqueeze(0).repeat(num_envs,1,1) * 4
 constraints = LinearConstraints(xlb,xub,ulb,uub)
 
-# params
-mpc_steps = 5
-params = MPCParams(mpc_steps, 1e-3, 5000, 100)
+
 
 
 # mpc
