@@ -8,15 +8,16 @@ DIR = os.path.abspath(os.path.dirname(__file__))
 MAIN_DIR = os.path.dirname(DIR)
 sys.path.append(MAIN_DIR)
 
-from tinympcTh.tinympc_torch import MPCSolver, LinearDynamics, LinearCost, LinearConstraints, MPCParams
+from tinympcTh.tinyiLQR_torch import MPCSolver, LinearDynamics, LinearCost, LinearConstraints, MPCParams
 
 # system parameters
 dt = 0.1
 num_envs = 1
+mpc_steps = 100
 
 # dynamics
-A = torch.tensor([[1, dt], [0, 1]]).unsqueeze(0).repeat(num_envs,1,1)
-B = torch.tensor([[0], [dt]]).unsqueeze(0).repeat(num_envs,1,1)
+A = torch.tensor([[1, dt], [0, 1]]).unsqueeze(0).unsqueeze(-1).repeat(num_envs,1,1,mpc_steps)
+B = torch.tensor([[0], [dt]]).unsqueeze(0).unsqueeze(-1).repeat(num_envs,1,1,mpc_steps)
 dyn = LinearDynamics(A,B)
 
 # cost
@@ -33,8 +34,8 @@ uub = torch.ones((1,1)).unsqueeze(0).repeat(num_envs,1,1) * 1
 constraints = LinearConstraints(xlb,xub,ulb,uub)
 
 # mpc params
-mpc_steps = 100
-params = MPCParams(mpc_steps, 0.001, 5000, 100)
+
+params = MPCParams(mpc_steps, 0.001, 100)
 
 # solver
 mpc = MPCSolver(dyn, cost, constraints, params ,num_envs,'cpu')

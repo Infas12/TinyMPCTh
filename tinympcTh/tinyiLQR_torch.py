@@ -43,7 +43,6 @@ class MPCSolver:
         # MPC parameters
         self.rho = params.rho
 
-        # Cached matrices        
         self.P = torch.zeros((num_envs, self.nx, self.nx, self.N),device=device)
         self.K = torch.zeros((num_envs, self.nu, self.nx, self.N),device=device)
 
@@ -73,7 +72,7 @@ class MPCSolver:
         self.g = torch.zeros((num_envs, self.nx, self.N),device=device)
         self.y = torch.zeros((num_envs, self.nu, self.N-1),device=device)
 
-
+ 
     def finite_horizon_lqr(self):
         
         self.P[:,:,:,self.N-1] = self.cost.Qf + torch.eye(self.nx,device=self.device)[None,:] * self.rho
