@@ -40,9 +40,9 @@ g = 9.81
 m_pole = 1
 M_cart = 1
 l_pole = 0.47
-mpc_dt = 0.005
+mpc_dt = 0.015
 mpc_steps = 50
-params = MPCParams(mpc_steps, 1e-2, 100)
+params = MPCParams(mpc_steps, 1e-3, 3)
 
 # system dynamics
 A = torch.tensor([[0, 1, 0, 0], 

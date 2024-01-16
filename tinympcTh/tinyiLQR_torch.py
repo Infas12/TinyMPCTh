@@ -75,13 +75,16 @@ class MPCSolver:
  
     def finite_horizon_lqr(self):
         
-        self.P[:,:,:,self.N-1] = self.cost.Qf + torch.eye(self.nx,device=self.device)[None,:] * self.rho
+        self.P[:,:,:,self.N-1] = torch.eye(self.nx,device=self.device)[None,:] * self.rho
+        R1 = self.cost.R + torch.eye(self.nu,device=self.device)[None,:] * self.rho
+        Q1 = self.cost.Q + torch.eye(self.nx,device=self.device)[None,:] * self.rho
+ 
         for i in range(self.N-2, -1, -1):
-            RpBTpkp1B = self.cost.R + torch.bmm(torch.bmm(self.dyn.B[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i])
+            RpBTpkp1B = torch.linalg.inv(R1 + torch.bmm(torch.bmm(self.dyn.B[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i]))
             self.K[:,:,:,i] = torch.bmm(
                 RpBTpkp1B,
                 torch.bmm(torch.bmm(self.dyn.B[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.A[:,:,:,i]))
-            self.P[:,:,:,i] = self.cost.Q + \
+            self.P[:,:,:,i] = Q1 + \
                     torch.bmm(torch.bmm(self.dyn.A[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.A[:,:,:,i]) - \
                     torch.bmm(torch.bmm(torch.bmm(self.dyn.A[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i]),self.K[:,:,:,i])
             
