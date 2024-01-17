@@ -45,7 +45,11 @@ class MPCSolver:
 
         self.P = torch.zeros((num_envs, self.nx, self.nx, self.N),device=device)
         self.K = torch.zeros((num_envs, self.nu, self.nx, self.N),device=device)
+        self.C1 = torch.zeros((num_envs, self.nu, self.nu, self.N),device=device) # Quu_inv
+        self.C2 = torch.zeros((num_envs, self.nx, self.nx, self.N),device=device) # AmBKt
+        self.C3 = torch.zeros((num_envs, self.nx, self.nu, self.N),device=device) # coeff_d2p
 
+        
         # reference state trajectory
         self.xref = torch.zeros((num_envs, self.nx, self.N),device=device)
         
@@ -87,20 +91,24 @@ class MPCSolver:
             self.P[:,:,:,i] = Q1 + \
                     torch.bmm(torch.bmm(self.dyn.A[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.A[:,:,:,i]) - \
                     torch.bmm(torch.bmm(torch.bmm(self.dyn.A[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i]),self.K[:,:,:,i])
-            
+            RpBtPB = self.cost.R + torch.bmm(torch.bmm(self.dyn.B[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i])
+            self.C1[:,:,:,i] = torch.linalg.inv(RpBtPB)
+
+            AmBK = self.dyn.A[:,:,:,i] - torch.bmm(self.dyn.B[:,:,:,i],self.K[:,:,:,i])
+            self.C2[:,:,:,i] = AmBK.transpose(1,2)
+
+            self.C3[:,:,:,i] = torch.bmm(self.K[:,:,:,i].transpose(1,2),self.cost.R)  - \
+                torch.bmm(torch.bmm(self.C2[:,:,:,i],self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i])                   
     
     def backward_pass(self):
                 
         for i in range(self.N-2, -1, -1):
         
-            RpBtPB = self.cost.R + torch.bmm(torch.bmm(self.dyn.B[:,:,:,i].transpose(1,2),self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i])
-            C1 = torch.linalg.inv(RpBtPB)
+            C1 = self.C1[:,:,:,i]
 
-            AmBK = self.dyn.A[:,:,:,i] - torch.bmm(self.dyn.B[:,:,:,i],self.K[:,:,:,i])
-            C2 = AmBK.transpose(1,2)
+            C2 = self.C2[:,:,:,i]
 
-            C3 = torch.bmm(self.K[:,:,:,i].transpose(1,2),self.cost.R)  - \
-                torch.bmm(torch.bmm(C2,self.P[:,:,:,i+1]),self.dyn.B[:,:,:,i])        
+            C3 = self.C3[:,:,:,i]     
         
             self.d[:,:,i:i+1] = torch.bmm(C1,(torch.bmm(self.dyn.B[:,:,:,i].transpose(1,2),self.p[:,:,i+1:i+2]) + self.r[:,:,i:i+1]))
             self.p[:,:,i:i+1] = self.q[:,:,i:i+1] + \

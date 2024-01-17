@@ -39,7 +39,7 @@ uub = torch.ones((1,1)).unsqueeze(0).repeat(num_envs,1,1) * 2
 constraints = LinearConstraints(xlb,xub,ulb,uub)
 
 # solver parameters
-mpcsteps = 10
+mpcsteps = 30
 MPC_params = MPCParams(mpc_steps=mpcsteps, 
                        rho=0.001, 
                        recatti_iter=5000, 
